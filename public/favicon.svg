@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 210 150">
+  <defs>
+    <linearGradient id="ng" gradientUnits="userSpaceOnUse" x1="28" y1="18" x2="92" y2="134">
+      <stop offset="0%" stop-color="#6EC8FF"/>
+      <stop offset="100%" stop-color="#1A6EE8"/>
+    </linearGradient>
+    <linearGradient id="sg" gradientUnits="userSpaceOnUse" x1="92" y1="14" x2="168" y2="134">
+      <stop offset="0%" stop-color="#5468F2"/>
+      <stop offset="100%" stop-color="#8C2FDC"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Stem -->
+  <rect x="62" y="18" width="5" height="97" rx="2.5" fill="url(#ng)"/>
+
+  <!-- Eighth-note flag -->
+  <path d="M67 18 C97 29 97 60 67 72"
+        fill="none" stroke="url(#ng)" stroke-width="5.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Note head (filled oval, tilted) -->
+  <ellipse cx="48" cy="118" rx="19" ry="13"
+           transform="rotate(-25 48 118)" fill="url(#ng)"/>
+
+  <!-- S -->
+  <text x="93" y="128"
+        font-family="Arial, 'Helvetica Neue', Helvetica, sans-serif"
+        font-weight="bold" font-size="112"
+        fill="url(#sg)">S</text>
+</svg>
