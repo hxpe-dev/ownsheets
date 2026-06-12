@@ -99,10 +99,11 @@ export default function PDFViewer({ sheet, onClose }: Props) {
       const baseViewport = pdfPage.getViewport({ scale: 1 })
       const dpr = window.devicePixelRatio || 1
 
+      // Fit to the full viewport width; height minus the top bar (56px) and bottom bar (56px mobile, 48px desktop)
       const mobile = window.innerWidth < 640
       const fitScale = Math.min(
-        (window.innerWidth - (mobile ? 24 : 96)) / baseViewport.width,
-        (window.innerHeight - (mobile ? 104 : 120)) / baseViewport.height,
+        window.innerWidth / baseViewport.width,
+        (window.innerHeight - (mobile ? 112 : 104)) / baseViewport.height,
       )
 
       // Render at full device resolution times the zoom level
@@ -248,12 +249,12 @@ export default function PDFViewer({ sheet, onClose }: Props) {
 
       {/* Canvas / scroll area */}
       <div className="flex-1 overflow-auto">
-        <div className="min-h-full flex items-center justify-center p-8">
+        <div className="min-h-full flex items-center justify-center">
           {loading ? (
             <div
               className="animate-pulse bg-zinc-900 rounded-lg flex flex-col p-8 gap-5 shadow-2xl shadow-black/60 shrink-0"
               style={{
-                width: 'min(calc(100vw - 3rem), calc((100vh - 9rem) * 0.707))',
+                width: 'min(100vw, calc((100vh - 7rem) * 0.707))',
                 aspectRatio: '210 / 297',
               }}
             >
