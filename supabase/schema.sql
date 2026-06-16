@@ -203,6 +203,21 @@ as $$
   );
 $$;
 
+-- is_owner: true only for the single password account.
+-- Guests always sign in anonymously (is_anonymous = true), so a non-anonymous
+-- authenticated session is, by definition, the owner.
+-- SECURITY: this is only sound if email/password SIGNUPS ARE DISABLED in the
+-- Supabase dashboard (Authentication -> Sign In / Providers -> Email ->
+-- "Allow new users to sign up" = off). With signups off, the only way to get a
+-- non-anonymous session is the owner's email + password.
+create function public.is_owner()
+returns boolean
+language sql
+stable
+as $$
+  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, true) = false;
+$$;
+
 
 -- Row Level Security
 
@@ -213,63 +228,84 @@ alter table public.annotations      enable row level security;
 alter table public.access_codes     enable row level security;
 alter table public.validated_guests enable row level security;
 
+-- Writes are gated on is_owner() so anonymous/guest sessions can never insert,
+-- update, or delete. Reads are allowed for the owner and for validated guests.
+
 -- sheets
-create policy "owner full access" on public.sheets for all
-  using  (owner_id = auth.uid())
-  with check (owner_id = auth.uid());
+create policy "owner all" on public.sheets for all
+  to authenticated
+  using  (public.is_owner() and owner_id = auth.uid())
+  with check (public.is_owner() and owner_id = auth.uid());
 
 create policy "guest read" on public.sheets for select
+  to authenticated
   using (public.is_validated_guest());
 
 -- setlists
-create policy "owner full access" on public.setlists for all
-  using  (owner_id = auth.uid())
-  with check (owner_id = auth.uid());
+create policy "owner all" on public.setlists for all
+  to authenticated
+  using  (public.is_owner() and owner_id = auth.uid())
+  with check (public.is_owner() and owner_id = auth.uid());
 
 create policy "guest read" on public.setlists for select
+  to authenticated
   using (public.is_validated_guest());
 
 -- setlist_items
-create policy "owner full access" on public.setlist_items for all
+create policy "owner all" on public.setlist_items for all
+  to authenticated
   using (
-    exists (
+    public.is_owner() and exists (
+      select 1 from public.setlists s
+      where s.id = setlist_id and s.owner_id = auth.uid()
+    )
+  )
+  with check (
+    public.is_owner() and exists (
       select 1 from public.setlists s
       where s.id = setlist_id and s.owner_id = auth.uid()
     )
   );
 
 create policy "guest read" on public.setlist_items for select
+  to authenticated
   using (public.is_validated_guest());
 
 -- annotations
-create policy "owner full access" on public.annotations for all
-  using  (owner_id = auth.uid())
-  with check (owner_id = auth.uid());
+create policy "owner all" on public.annotations for all
+  to authenticated
+  using  (public.is_owner() and owner_id = auth.uid())
+  with check (public.is_owner() and owner_id = auth.uid());
 
 create policy "guest read" on public.annotations for select
+  to authenticated
   using (public.is_validated_guest());
 
--- access_codes: owner (non-guest authenticated user) can insert/delete.
--- everyone (including anon) can select for login validation.
-create policy "public read" on public.access_codes for select
-  using (true);
+-- access_codes: owner only. Guests never touch this table directly; code
+-- validation runs through the validate_guest_code() security-definer function.
+create policy "owner read" on public.access_codes for select
+  to authenticated
+  using (public.is_owner());
 
 create policy "owner insert" on public.access_codes for insert
   to authenticated
-  with check (not public.is_validated_guest());
+  with check (public.is_owner());
 
 create policy "owner delete" on public.access_codes for delete
   to authenticated
-  using (not public.is_validated_guest());
+  using (public.is_owner());
 
--- validated_guests: users can only see their own row (revocation check on load).
--- Owner (non-guest authenticated user) can read all rows to see usage stats.
+-- validated_guests: a guest may read only their own row (revocation check on
+-- load); the owner may read all rows for the usage dashboard. There are no
+-- write policies: rows are only ever created/updated by the security-definer
+-- functions validate_guest_code(), touch_guest_session(), and the record_* fns.
 create policy "own record only" on public.validated_guests for select
+  to authenticated
   using (user_id = auth.uid());
 
 create policy "owner read all" on public.validated_guests for select
   to authenticated
-  using (not public.is_validated_guest());
+  using (public.is_owner());
 
 
 -- Storage
@@ -279,26 +315,35 @@ values ('sheets', 'sheets', false)
 on conflict do nothing;
 
 -- Owner: full control over their own folder (path prefix = their user id).
+-- is_owner() blocks anonymous sessions from writing to a folder named after
+-- their own uid.
 create policy "owner upload" on storage.objects for insert
+  to authenticated
   with check (
     bucket_id = 'sheets'
+    and public.is_owner()
     and auth.uid()::text = (storage.foldername(name))[1]
   );
 
 create policy "owner read" on storage.objects for select
+  to authenticated
   using (
     bucket_id = 'sheets'
+    and public.is_owner()
     and auth.uid()::text = (storage.foldername(name))[1]
   );
 
 create policy "owner delete" on storage.objects for delete
+  to authenticated
   using (
     bucket_id = 'sheets'
+    and public.is_owner()
     and auth.uid()::text = (storage.foldername(name))[1]
   );
 
 -- Guests: read any file in the bucket (all files belong to the single owner).
 create policy "guest read" on storage.objects for select
+  to authenticated
   using (
     bucket_id = 'sheets'
     and public.is_validated_guest()
@@ -314,8 +359,7 @@ grant select, insert, update, delete on public.setlists         to authenticated
 grant select, insert, update, delete on public.setlist_items    to authenticated;
 grant select, insert, update, delete on public.annotations      to authenticated;
 grant select, insert, delete         on public.access_codes     to authenticated;
-grant select                         on public.access_codes     to anon;
-grant select                         on public.validated_guests to authenticated, anon;
+grant select                         on public.validated_guests to authenticated;
 
 grant usage, select on all sequences in schema public to authenticated;
 
@@ -326,6 +370,7 @@ revoke execute on function public.record_guest_egress(bigint)     from public, a
 revoke execute on function public.touch_guest_session()           from public, anon;
 revoke execute on function public.validate_guest_code(text, text) from public, anon;
 revoke execute on function public.is_validated_guest()            from public;
+revoke execute on function public.is_owner()                      from public;
 
 -- get_storage_usage: owner only
 grant execute on function public.get_storage_usage()             to authenticated;
@@ -337,3 +382,44 @@ grant execute on function public.touch_guest_session()           to authenticate
 grant execute on function public.validate_guest_code(text, text) to authenticated;
 -- is_validated_guest: used in RLS policies, anon requests also trigger RLS so anon needs EXECUTE
 grant execute on function public.is_validated_guest()            to anon, authenticated;
+-- is_owner: used in RLS policies to gate every write to the owner
+grant execute on function public.is_owner()                      to anon, authenticated;
+
+
+-- ============================================================
+-- Migration (existing deployments only, skip on fresh installs)
+-- ============================================================
+-- If you deployed an earlier version, run this block once in the SQL Editor to
+-- adopt the hardened, owner-only write policies. It is safe to run repeatedly.
+--
+-- REQUIRED dashboard step (cannot be done in SQL):
+--   Authentication -> Sign In / Providers -> Email -> turn OFF
+--   "Allow new users to sign up". Keep "Allow anonymous sign-ins" ON.
+--   Without this, anyone could register a non-anonymous account and be treated
+--   as the owner.
+--
+-- create function public.is_owner()
+-- returns boolean language sql stable as $$
+--   select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, true) = false;
+-- $$;
+-- revoke execute on function public.is_owner() from public;
+-- grant  execute on function public.is_owner() to anon, authenticated;
+--
+-- -- Drop the old policies (named "owner full access" / "public read").
+-- drop policy if exists "owner full access" on public.sheets;
+-- drop policy if exists "owner full access" on public.setlists;
+-- drop policy if exists "owner full access" on public.setlist_items;
+-- drop policy if exists "owner full access" on public.annotations;
+-- drop policy if exists "public read"       on public.access_codes;
+-- drop policy if exists "owner insert"      on public.access_codes;
+-- drop policy if exists "owner delete"      on public.access_codes;
+-- drop policy if exists "owner read all"    on public.validated_guests;
+-- drop policy if exists "owner upload"      on storage.objects;
+-- drop policy if exists "owner read"        on storage.objects;
+-- drop policy if exists "owner delete"      on storage.objects;
+--
+-- Then re-run the "Row Level Security", "Storage", and "Grants" sections above
+-- to recreate every policy and grant in its hardened form, and revoke the old
+-- anon grants:
+--   revoke select on public.access_codes     from anon;
+--   revoke select on public.validated_guests from anon;

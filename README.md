@@ -69,8 +69,8 @@ On the Supabase side (one-time setup, ~5 minutes):
 
 1. Create a new project at [supabase.com](https://supabase.com).
 2. Run the entire [`supabase/schema.sql`](supabase/schema.sql) in the SQL Editor. That single file creates every table, policy, function, and the storage bucket.
-3. In **Authentication -> Sign in / Providers**: keep **Email** enabled, and enable **Anonymous sign-ins** (that is how guest access codes work).
-4. In **Authentication -> Users**: add yourself as a user. That email + password is your owner login.
+3. In **Authentication -> Sign in / Providers -> Email**: keep **Email** enabled but turn **"Allow new users to sign up" OFF**. This is the keystone of the security model, see [Security](#security) below. Then enable **Anonymous sign-ins** (that is how guest access codes work).
+4. In **Authentication -> Users**: add yourself as a user. That email + password is your owner login. Do this *after* disabling signups, since you are the only account that should ever exist.
 5. In **Authentication -> URL Configuration**: set the Site URL to wherever you deploy (use `http://localhost:5173` while developing).
 
 To deploy, push the repo to GitHub and import it into Vercel (or Netlify, or Cloudflare Pages). It is a plain Vite app: build command `npm run build`, output `dist/`, plus the environment variables below. Every push redeploys automatically.
@@ -100,6 +100,21 @@ Go to **Settings**, create an access code, and send it to a friend. They type it
 ### Backups
 
 **Settings -> Export backup** downloads a ZIP with every PDF and a `manifest.json` describing all metadata and setlists. **Import backup** on any instance rebuilds the library exactly, with setlist ordering intact. Importing next to existing sheets is safe; nothing gets overwritten.
+
+## Security
+
+The whole app trusts a single rule: **the owner is the only account that is not anonymous.** Everything follows from there.
+
+- **Guests are anonymous sessions.** An access code does not create a Supabase account; it just flips an anonymous session's `is_validated_guest` flag. Guests can read sheets and setlists, nothing else.
+- **Every write is gated on `is_owner()`** at the database level (Row Level Security), which is true only for a non-anonymous session. The anon API key that ships in the frontend cannot insert, update, or delete anything, in any table or in storage. Try it: a raw API call with the public key gets rejected by Postgres, not just by the UI.
+- **The storage bucket is private.** PDFs are served only through short-lived signed URLs, and only to the owner or a validated guest.
+- **Access codes are stored as SHA-256 hashes** and are readable only by the owner.
+
+This all rests on one dashboard setting: **email signups must be disabled** (step 3 above). If signups were on, anyone could register a non-anonymous account and the database would treat them as the owner. With signups off, the only path to a non-anonymous session is your email and password. Anonymous sign-ins stay on, but they only ever grant guest-level read access.
+
+If you ever suspect trouble, rotate your owner password in **Supabase -> Authentication -> Users**, and revoke any access code from the in-app Settings tab.
+
+**Already running an older version?** The owner-only write policies were tightened after the first release. Run the migration block at the bottom of [`supabase/schema.sql`](supabase/schema.sql) once in the SQL Editor, and make sure email signups are disabled (step 3). A fresh install from the current schema already has everything.
 
 ## Contributing
 
