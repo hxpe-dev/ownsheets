@@ -22,7 +22,7 @@ function SheetThumb({ filePath, title }: {
       {dataUrl
         ? <img src={dataUrl} alt="" className="w-full h-full object-cover" />
         : loading
-          ? <div className="w-3 h-3 border border-zinc-700 border-t-zinc-500 rounded-full animate-spin" />
+          ? <div className="w-full h-full bg-zinc-800 animate-pulse" />
           : <span className="text-xl font-thin text-zinc-700">{title[0].toUpperCase()}</span>
       }
     </div>

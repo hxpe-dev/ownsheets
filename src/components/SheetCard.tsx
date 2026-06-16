@@ -21,12 +21,11 @@ export default function SheetCard({ sheet, onClick, onEdit, onAddToSetlist }: Pr
         <div ref={containerRef} className="aspect-[3/4] bg-zinc-900 relative overflow-hidden shrink-0">
           {dataUrl ? (
             <img src={dataUrl} alt="" className="w-full h-full object-cover" />
+          ) : loading ? (
+            <div className="w-full h-full bg-zinc-800 animate-pulse" />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
-              {loading
-                ? <div className="w-4 h-4 border border-zinc-700 border-t-zinc-500 rounded-full animate-spin" />
-                : <span className="text-6xl font-thin text-zinc-800 select-none transition-all duration-500 group-hover:text-zinc-700 group-hover:scale-110">{sheet.title[0].toUpperCase()}</span>
-              }
+              <span className="text-6xl font-thin text-zinc-800 select-none transition-all duration-500 group-hover:text-zinc-700 group-hover:scale-110">{sheet.title[0].toUpperCase()}</span>
             </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/10 to-transparent" />
