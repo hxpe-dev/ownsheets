@@ -82,6 +82,16 @@ create table public.validated_guests (
 
 create index validated_guests_user_id_idx on public.validated_guests(user_id);
 
+-- app_config: single-row table holding the owner's email.
+-- Read only by the is_owner() security-definer function (no API access at all),
+-- so it is how the database knows which signed-in account is the real owner.
+-- You MUST insert your owner email once after running this schema, see the
+-- setup note just below the is_owner() function.
+create table public.app_config (
+  id          smallint primary key default 1 check (id = 1),
+  owner_email text     not null
+);
+
 
 -- Full-text search trigger
 
@@ -203,20 +213,28 @@ as $$
   );
 $$;
 
--- is_owner: true only for the single password account.
--- Guests always sign in anonymously (is_anonymous = true), so a non-anonymous
--- authenticated session is, by definition, the owner.
--- SECURITY: this is only sound if email/password SIGNUPS ARE DISABLED in the
--- Supabase dashboard (Authentication -> Sign In / Providers -> Email ->
--- "Allow new users to sign up" = off). With signups off, the only way to get a
--- non-anonymous session is the owner's email + password.
+-- is_owner: true only for the one account whose email matches app_config.
+-- A session is the owner when it is NOT anonymous AND its email equals the
+-- configured owner email. Pinning to the email (rather than just "non-anonymous")
+-- means email signups can stay enabled, which Supabase requires for anonymous
+-- guest sign-ins to work, without any new account being mistaken for the owner.
+-- Security definer so it can read app_config, which has no API access of its own.
 create function public.is_owner()
 returns boolean
 language sql
 stable
+security definer
+set search_path = public
 as $$
-  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, true) = false;
+  select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, true) = false
+     and lower(auth.jwt() ->> 'email') = (select lower(owner_email) from public.app_config where id = 1);
 $$;
+
+-- SETUP, REQUIRED: tell the database who the owner is. Run once, using the same
+-- email you created the owner user with (and that is in VITE_OWNER_EMAIL):
+--   insert into public.app_config (owner_email) values ('you@example.com');
+-- Until you do, is_owner() is false for everyone and the owner cannot write
+-- (the app fails closed, which is safe, just non-functional for the owner).
 
 
 -- Row Level Security
@@ -227,6 +245,10 @@ alter table public.setlist_items    enable row level security;
 alter table public.annotations      enable row level security;
 alter table public.access_codes     enable row level security;
 alter table public.validated_guests enable row level security;
+alter table public.app_config       enable row level security;
+-- app_config gets NO policies on purpose: with RLS on and no policy, the API
+-- (anon and authenticated alike) can never read or write it. Only the
+-- is_owner() security-definer function reads it.
 
 -- Writes are gated on is_owner() so anonymous/guest sessions can never insert,
 -- update, or delete. Reads are allowed for the owner and for validated guests.
@@ -389,37 +411,57 @@ grant execute on function public.is_owner()                      to anon, authen
 -- ============================================================
 -- Migration (existing deployments only, skip on fresh installs)
 -- ============================================================
--- If you deployed an earlier version, run this block once in the SQL Editor to
--- adopt the hardened, owner-only write policies. It is safe to run repeatedly.
+-- If you deployed an earlier version, run the block below once in the SQL Editor
+-- to adopt the email-pinned, owner-only write policies. It is safe to re-run.
 --
--- REQUIRED dashboard step (cannot be done in SQL):
---   Authentication -> Sign In / Providers -> Email -> turn OFF
---   "Allow new users to sign up". Keep "Allow anonymous sign-ins" ON.
---   Without this, anyone could register a non-anonymous account and be treated
---   as the owner.
+-- IMPORTANT: keep email signups AND anonymous sign-ins both ENABLED in the
+-- dashboard. Disabling signups also disables anonymous sign-ins, which breaks
+-- guest access codes. Security comes from pinning the owner by email below, not
+-- from disabling signups, so a stray signup account gets no access.
 --
--- create function public.is_owner()
--- returns boolean language sql stable as $$
---   select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, true) = false;
+-- Uncomment and run (replace the email):
+--
+-- create table if not exists public.app_config (
+--   id smallint primary key default 1 check (id = 1),
+--   owner_email text not null
+-- );
+-- alter table public.app_config enable row level security;  -- no policies = no API access
+-- insert into public.app_config (id, owner_email) values (1, 'you@example.com')
+--   on conflict (id) do update set owner_email = excluded.owner_email;
+--
+-- create or replace function public.is_owner()
+-- returns boolean language sql stable security definer set search_path = public as $$
+--   select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, true) = false
+--      and lower(auth.jwt() ->> 'email') = (select lower(owner_email) from public.app_config where id = 1);
 -- $$;
 -- revoke execute on function public.is_owner() from public;
 -- grant  execute on function public.is_owner() to anon, authenticated;
 --
--- -- Drop the old policies (named "owner full access" / "public read").
+-- -- Drop every old policy (names from earlier versions included).
 -- drop policy if exists "owner full access" on public.sheets;
+-- drop policy if exists "owner all"         on public.sheets;
+-- drop policy if exists "guest read"        on public.sheets;
 -- drop policy if exists "owner full access" on public.setlists;
+-- drop policy if exists "owner all"         on public.setlists;
+-- drop policy if exists "guest read"        on public.setlists;
 -- drop policy if exists "owner full access" on public.setlist_items;
+-- drop policy if exists "owner all"         on public.setlist_items;
+-- drop policy if exists "guest read"        on public.setlist_items;
 -- drop policy if exists "owner full access" on public.annotations;
+-- drop policy if exists "owner all"         on public.annotations;
+-- drop policy if exists "guest read"        on public.annotations;
 -- drop policy if exists "public read"       on public.access_codes;
+-- drop policy if exists "owner read"        on public.access_codes;
 -- drop policy if exists "owner insert"      on public.access_codes;
 -- drop policy if exists "owner delete"      on public.access_codes;
+-- drop policy if exists "own record only"   on public.validated_guests;
 -- drop policy if exists "owner read all"    on public.validated_guests;
 -- drop policy if exists "owner upload"      on storage.objects;
 -- drop policy if exists "owner read"        on storage.objects;
 -- drop policy if exists "owner delete"      on storage.objects;
+-- drop policy if exists "guest read"        on storage.objects;
 --
--- Then re-run the "Row Level Security", "Storage", and "Grants" sections above
--- to recreate every policy and grant in its hardened form, and revoke the old
--- anon grants:
+-- Then re-run the entire "Row Level Security", "Storage", and "Grants" sections
+-- above to recreate every policy and grant, and revoke the old anon grants:
 --   revoke select on public.access_codes     from anon;
 --   revoke select on public.validated_guests from anon;
