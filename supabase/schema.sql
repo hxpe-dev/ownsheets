@@ -196,7 +196,7 @@ set search_path = storage, public
 as $$
   select coalesce(sum((metadata->>'size')::bigint), 0)
   from storage.objects
-  where bucket_id = 'sheets';
+  where bucket_id = 'sheets' and public.is_owner();
 $$;
 
 -- is_validated_guest: stable helper called inside RLS policies.
@@ -406,62 +406,3 @@ grant execute on function public.validate_guest_code(text, text) to authenticate
 grant execute on function public.is_validated_guest()            to anon, authenticated;
 -- is_owner: used in RLS policies to gate every write to the owner
 grant execute on function public.is_owner()                      to anon, authenticated;
-
-
--- ============================================================
--- Migration (existing deployments only, skip on fresh installs)
--- ============================================================
--- If you deployed an earlier version, run the block below once in the SQL Editor
--- to adopt the email-pinned, owner-only write policies. It is safe to re-run.
---
--- IMPORTANT: keep email signups AND anonymous sign-ins both ENABLED in the
--- dashboard. Disabling signups also disables anonymous sign-ins, which breaks
--- guest access codes. Security comes from pinning the owner by email below, not
--- from disabling signups, so a stray signup account gets no access.
---
--- Uncomment and run (replace the email):
---
--- create table if not exists public.app_config (
---   id smallint primary key default 1 check (id = 1),
---   owner_email text not null
--- );
--- alter table public.app_config enable row level security;  -- no policies = no API access
--- insert into public.app_config (id, owner_email) values (1, 'you@example.com')
---   on conflict (id) do update set owner_email = excluded.owner_email;
---
--- create or replace function public.is_owner()
--- returns boolean language sql stable security definer set search_path = public as $$
---   select coalesce((auth.jwt() ->> 'is_anonymous')::boolean, true) = false
---      and lower(auth.jwt() ->> 'email') = (select lower(owner_email) from public.app_config where id = 1);
--- $$;
--- revoke execute on function public.is_owner() from public;
--- grant  execute on function public.is_owner() to anon, authenticated;
---
--- -- Drop every old policy (names from earlier versions included).
--- drop policy if exists "owner full access" on public.sheets;
--- drop policy if exists "owner all"         on public.sheets;
--- drop policy if exists "guest read"        on public.sheets;
--- drop policy if exists "owner full access" on public.setlists;
--- drop policy if exists "owner all"         on public.setlists;
--- drop policy if exists "guest read"        on public.setlists;
--- drop policy if exists "owner full access" on public.setlist_items;
--- drop policy if exists "owner all"         on public.setlist_items;
--- drop policy if exists "guest read"        on public.setlist_items;
--- drop policy if exists "owner full access" on public.annotations;
--- drop policy if exists "owner all"         on public.annotations;
--- drop policy if exists "guest read"        on public.annotations;
--- drop policy if exists "public read"       on public.access_codes;
--- drop policy if exists "owner read"        on public.access_codes;
--- drop policy if exists "owner insert"      on public.access_codes;
--- drop policy if exists "owner delete"      on public.access_codes;
--- drop policy if exists "own record only"   on public.validated_guests;
--- drop policy if exists "owner read all"    on public.validated_guests;
--- drop policy if exists "owner upload"      on storage.objects;
--- drop policy if exists "owner read"        on storage.objects;
--- drop policy if exists "owner delete"      on storage.objects;
--- drop policy if exists "guest read"        on storage.objects;
---
--- Then re-run the entire "Row Level Security", "Storage", and "Grants" sections
--- above to recreate every policy and grant, and revoke the old anon grants:
---   revoke select on public.access_codes     from anon;
---   revoke select on public.validated_guests from anon;
