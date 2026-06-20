@@ -35,8 +35,12 @@ Built with React, TypeScript, Tailwind CSS, PDF.js, and Supabase.
 
 **The viewer**
 - Full retina-resolution rendering with zoom
-- Page turning via arrow keys, spacebar, or any Bluetooth pedal that emulates arrows (AirTurn, PageFlip...)
+- Page turning via arrow keys, spacebar, swipe (on phones and tablets), or any Bluetooth pedal that emulates arrows (AirTurn, PageFlip...)
 - Download any sheet straight from the viewer
+
+**Works on touch**
+- Responsive layout with a bottom nav bar on phones; on touch tablets, controls that normally appear on hover are always shown, since there is no cursor to hover with
+- Swipe left/right in the viewer to flip pages; zoom with the on-screen controls and drag to pan when zoomed in
 
 **Built to be cheap and fast**
 - PDFs and thumbnails are cached locally after the first load, so repeat views cost zero Supabase egress and open instantly (the viewer even shows a "cached" badge)
