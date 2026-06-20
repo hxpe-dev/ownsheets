@@ -16,11 +16,11 @@ export default function SheetCard({ sheet, onClick, onEdit, onAddToSetlist }: Pr
     <div className="group relative h-full">
       <button
         onClick={onClick}
-        className="text-left w-full h-full flex flex-col bg-zinc-950 border border-zinc-900 hover:border-zinc-700 rounded-2xl overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl hover:shadow-black/60 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        className="text-left w-full h-full flex flex-col bg-zinc-950 border border-zinc-900 hover:border-zinc-700 rounded-2xl overflow-hidden transition-[transform,box-shadow,border-color] duration-300 can-hover:hover:scale-[1.02] can-hover:hover:shadow-2xl can-hover:hover:shadow-black/60 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
       >
         <div ref={containerRef} className="aspect-[3/4] bg-zinc-900 relative overflow-hidden shrink-0">
           {dataUrl ? (
-            <img src={dataUrl} alt="" className="w-full h-full object-cover" />
+            <img src={dataUrl} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
           ) : loading ? (
             <div className="w-full h-full bg-zinc-800 animate-pulse" />
           ) : (

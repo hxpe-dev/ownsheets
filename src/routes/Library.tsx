@@ -110,7 +110,7 @@ export default function LibraryRoute() {
     <div className="min-h-screen bg-[#080808] text-white">
 
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#080808]/90 backdrop-blur-xl border-b border-zinc-900/80">
+      <header className="sticky top-0 z-40 bg-[#080808]/95 backdrop-blur-md border-b border-zinc-900/80">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center gap-3 sm:gap-5">
           <div className="flex items-center gap-2.5 shrink-0">
             <img src="/favicon.svg" alt="ownSheets" className="h-7 w-auto" />
@@ -233,7 +233,7 @@ export default function LibraryRoute() {
       </div>
 
       {/* Mobile bottom nav: hidden on sm+ (desktop uses header nav) */}
-      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#080808]/95 backdrop-blur-xl border-t border-zinc-900/80 flex">
+      <nav className="sm:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#080808]/95 backdrop-blur-md border-t border-zinc-900/80 flex">
         {tabs.map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={`flex-1 flex flex-col items-center justify-center gap-1 py-3 transition-colors cursor-pointer ${tab === t ? 'text-zinc-100' : 'text-zinc-600 active:text-zinc-400'
