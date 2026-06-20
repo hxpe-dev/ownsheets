@@ -122,7 +122,7 @@ export default function SetlistsRoute({ onViewSheet }: Props) {
                   </button>
 
                   <button onClick={() => handleRemove(s.id)}
-                    className="shrink-0 text-zinc-800 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer p-1"
+                    className="shrink-0 text-zinc-800 hover:text-red-400 transition-colors opacity-100 can-hover:opacity-0 can-hover:group-hover:opacity-100 cursor-pointer p-1"
                     title="Remove from setlist">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -157,7 +157,7 @@ export default function SetlistsRoute({ onViewSheet }: Props) {
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-zinc-200 text-sm font-medium leading-snug">{s.name}</p>
                   <button onClick={e => handleDelete(s.id, e)}
-                    className="shrink-0 text-zinc-800 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all cursor-pointer p-0.5 -mt-0.5"
+                    className="shrink-0 text-zinc-800 hover:text-red-400 opacity-100 can-hover:opacity-0 can-hover:group-hover:opacity-100 transition-all cursor-pointer p-0.5 -mt-0.5"
                     title="Delete setlist">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

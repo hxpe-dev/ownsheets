@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* can-hover: only applies on devices with a real pointer that can hover
+   (mouse/trackpad). Touch screens, including wide tablets, are excluded, so
+   hover-revealed controls can be shown by default there instead. */
+@custom-variant can-hover {
+  @media (hover: hover) {
+    @slot;
+  }
+}
+
 *,
 *::before,
 *::after {

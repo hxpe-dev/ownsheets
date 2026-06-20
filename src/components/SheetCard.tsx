@@ -51,7 +51,7 @@ export default function SheetCard({ sheet, onClick, onEdit, onAddToSetlist }: Pr
 
       {/* Hover action buttons */}
       {showActions && (
-        <div className="absolute top-2.5 right-2.5 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+        <div className="absolute top-2.5 right-2.5 flex gap-1 opacity-100 can-hover:opacity-0 can-hover:group-hover:opacity-100 transition-opacity duration-200">
           {onEdit && (
             <button
               onClick={e => {

@@ -218,7 +218,7 @@ export default function SettingsRoute() {
                 ) : (
                   <button
                     onClick={() => setConfirmDelete(c.id)}
-                    className="shrink-0 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all cursor-pointer text-xs mt-0.5"
+                    className="shrink-0 text-zinc-600 hover:text-red-400 opacity-100 can-hover:opacity-0 can-hover:group-hover:opacity-100 transition-all cursor-pointer text-xs mt-0.5"
                   >
                     Revoke
                   </button>

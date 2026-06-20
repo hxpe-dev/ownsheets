@@ -13,36 +13,51 @@ export default function App() {
   const checkingRef = useRef(false)
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data }) => {
-      const s = data.session
-      // Anonymous sessions must still have a validated_guests row, revoked guests get signed out here.
+    let active = true
+
+    async function resolveSession(s: Session | null) {
+      // Anonymous sessions must have a validated_guests row to be allowed in.
+      // On the very first use of a code the row is written by validate_guest_code()
+      // a moment after the anonymous session appears, so poll briefly before
+      // deciding the guest is unvalidated (or revoked).
       if (s && s.user.is_anonymous) {
         checkingRef.current = true
         setChecking(true)
-        const { data: vg } = await supabase
-          .from('validated_guests')
-          .select('user_id')
-          .eq('user_id', s.user.id)
-          .maybeSingle()
-        if (!vg) {
-          await supabase.auth.signOut()
-          setSession(null)
-        } else {
+        let validated = false
+        for (let i = 0; i < 15 && active; i++) {
+          const { data: vg } = await supabase
+            .from('validated_guests')
+            .select('user_id')
+            .eq('user_id', s.user.id)
+            .maybeSingle()
+          if (vg) { validated = true; break }
+          await new Promise(r => setTimeout(r, 200))
+        }
+        if (!active) return
+        if (validated) {
           setSession(s)
           touchGuestSession() // update last_seen_at for usage tracking
+        } else {
+          await supabase.auth.signOut()
+          setSession(null)
         }
         checkingRef.current = false
         setChecking(false)
       } else {
         setSession(s)
       }
-    })
+    }
+
+    supabase.auth.getSession().then(({ data }) => resolveSession(data.session))
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
-      // Skip events fired while the guest validation above is still running
-      if (!checkingRef.current) setSession(s)
+      // Skip events fired while a validation poll is already running
+      if (!checkingRef.current) resolveSession(s)
     })
-    return () => subscription.unsubscribe()
+    return () => {
+      active = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   if (session === undefined || checking) {

@@ -24,6 +24,7 @@ export default function PDFViewer({ sheet, onClose }: Props) {
   const renderingRef = useRef(false)
   const pendingRef = useRef<{ page: number; zoom: number } | null>(null)
   const pdfBytesRef = useRef<ArrayBuffer | null>(null)
+  const touchRef = useRef<{ x: number; y: number; multi: boolean } | null>(null)
 
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
@@ -179,6 +180,29 @@ export default function PDFViewer({ sheet, onClose }: Props) {
   const prev = () => setPage(p => Math.max(1, p - 1))
   const next = () => setPage(p => Math.min(totalPages, p + 1))
 
+  // Touch swipe to turn pages (mobile/tablet). Disabled while zoomed in so the
+  // user can pan the page freely; only acts on a clearly horizontal swipe.
+  function onTouchStart(e: React.TouchEvent) {
+    if (e.touches.length > 1) {
+      touchRef.current = { x: 0, y: 0, multi: true }
+      return
+    }
+    touchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, multi: false }
+  }
+
+  function onTouchEnd(e: React.TouchEvent) {
+    const start = touchRef.current
+    touchRef.current = null
+    if (!start || start.multi || zoom > 1) return
+    const t = e.changedTouches[0]
+    const dx = t.clientX - start.x
+    const dy = t.clientY - start.y
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) next()
+      else prev()
+    }
+  }
+
   const canZoomIn = zoom < ZOOM_STEPS[ZOOM_STEPS.length - 1]
   const canZoomOut = zoom > ZOOM_STEPS[0]
 
@@ -248,7 +272,7 @@ export default function PDFViewer({ sheet, onClose }: Props) {
       </div>
 
       {/* Canvas / scroll area */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto" onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
         <div className="min-h-full flex items-center justify-center">
           {loading ? (
             <div
